@@ -1,5 +1,5 @@
 """
-Evaluation script — loads a trained checkpoint and computes all metrics.
+Evaluation script: loads a trained checkpoint and computes all metrics.
 
 Usage:
     python scripts/evaluate.py --checkpoint results/lstm/baseline/best_model.pt \\

@@ -231,14 +231,34 @@ Also created `configs/dev_config.yaml` with reduced scale for local testing:
 
 **root cause:** standard REINFORCE training settings (lr=1e-3, no warmup) are poorly suited to Transformer architectures, which require careful optimisation to train stably.
 
-**status:** created `configs/transformer_config.yaml` with lower learning rate (1e-4), higher entropy coefficient (0.05), and smaller hidden dimension (128). Rerunning Transformer-only sweep under tuned config — results pending. 
+**status:** created `configs/transformer_config.yaml` with lower learning rate (1e-4), higher entropy coefficient (0.05), and smaller hidden dimension (128). Rerunning Transformer-only sweep under tuned config — also failed to help, and ran ~4x slower than the original pass. 
 
-update: it did not help. now im rethinking other things we can try do to improve transformer accuracy. additionally, it ran akmost 4x slower than the original transformer pass. 
+---
+
+## 13. Transformer Gumbel-Softmax experiment
+
+**when:** after REINFORCE transformer failed to converge reliably (issue 12)
+
+**motivation:** REINFORCE training of the Transformer was unstable — 8/10 seeds never left chance accuracy. Gumbel-Softmax (GS) makes the communication channel differentiable, removing the high-variance policy gradient signal and allowing end-to-end gradient flow through the message. This should stabilise training significantly.
+
+**what was changed:**
+- added `--gumbel` flag to `scripts/train.py`, which swaps `SenderReceiverRnnReinforce` for `SenderReceiverRnnGS`
+- added `agents/__init__.py::get_agents_gs()` which wraps the same sender/receiver cores in `RnnSenderGS` + `RnnReceiverGS`
+- added `configs/transformer_gs_config.yaml`: lr=1e-4, warmup_epochs=10, hidden_dim=128, temperature=1.0
+- GS results saved to `results/transformer_gs/seed_{seed}/` to avoid collision with REINFORCE results
+- patched `egg/core/gs_wrappers.py` for the same LSTM tuple bug as issue 5
+
+**results:** all 10 seeds converged.
+- val_acc: 0.575 (mean across seeds)
+- topo_rho: 0.149
+
+**interpretation:** GS solved the training instability completely — stable convergence across all 10 seeds compared to 2/10 for REINFORCE. Accuracy (0.575) is lower than LSTM (≈0.630) and GRU (≈0.662), consistent with the Transformer not being well-suited to sequential message generation with a short vocabulary and small hidden dim. Topographic similarity (0.149) is positive but lower than recurrent architectures, suggesting less structured language despite stable training.
 
 ---
 
 ## current status
 
-- full sweep complete: 4 architectures × 10 seeds, metrics.json saved per run
-- analysis scripts complete: aggregate_results.py, plot_learning_curves.py
-- tuned Transformer sweep in progress
+- all experiments complete: 5 conditions × 10 seeds (LSTM, GRU, Transformer/REINFORCE, Transformer/GS, MLP)
+- metrics.json saved per run for all conditions
+- analysis scripts complete: aggregate_results.py, plot_learning_curves.py, plot_message_length.py, plot_message_analysis.py
+- paper writeup in progress

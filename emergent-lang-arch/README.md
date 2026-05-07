@@ -52,7 +52,12 @@ python scripts/train.py --config configs/base_config.yaml --arch lstm --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch gru --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch transformer --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch mlp --seed 42
+
+# Transformer with Gumbel-Softmax (separate condition, more stable than REINFORCE)
+python scripts/train.py --config configs/transformer_gs_config.yaml --gumbel --seed 42
 ```
+
+Results for the standard architectures save to `results/{arch}/seed_{seed}/`. The Gumbel-Softmax condition saves to `results/transformer_gs/seed_{seed}/`.
  
 ---
  
@@ -62,7 +67,8 @@ python scripts/train.py --config configs/base_config.yaml --arch mlp --seed 42
 |---|---|
 | `lstm` | LSTM sender + LSTM receiver — baseline, most prior work uses this |
 | `gru` | GRU sender + GRU receiver — lighter recurrent baseline |
-| `transformer` | Transformer encoder sender + receiver — main novel condition |
+| `transformer` | Transformer encoder sender + receiver, trained with REINFORCE |
+| `transformer_gs` | Same Transformer architecture, trained with Gumbel-Softmax (`--gumbel` flag) — resolves REINFORCE instability |
 | `mlp` | MLP sender + receiver — control, no sequential processing |
  
 ---
@@ -95,8 +101,8 @@ emergent-lang-arch/
 ---
  
 ## Status
- 
-active research in progress
+
+All experiments complete. 5 conditions × 10 seeds each (LSTM, GRU, Transformer/REINFORCE, Transformer/GS, MLP). Paper writeup in progress.
  
 ---
  
@@ -108,5 +114,5 @@ Citation will be added once the paper is published.
  
 ## Author
 
-Maria B. 
-mariabusygina05@gmail.com
+Maria B.
+University of Wollongong in Dubai
