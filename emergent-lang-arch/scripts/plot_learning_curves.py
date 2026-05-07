@@ -15,10 +15,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-_PALETTE = [
-    "#2196F3", "#4CAF50", "#FF5722", "#FF9800", "#9C27B0",
-    "#00BCD4", "#E91E63", "#8BC34A", "#795548", "#607D8B",
-]
+_ARCH_COLORS = {
+    "lstm":           "#2196F3",  # blue
+    "gru":            "#4CAF50",  # green
+    "transformer":    "#FF5722",  # red
+    "transformer_gs": "#FF9800",  # orange
+    "mlp":            "#9C27B0",  # purple
+}
+_PALETTE = ["#00BCD4", "#E91E63", "#8BC34A", "#795548", "#607D8B", "#FFC107", "#3F51B5"]
+
+
+def arch_color(arch: str, unknown_archs: list[str]) -> str:
+    if arch in _ARCH_COLORS:
+        return _ARCH_COLORS[arch]
+    return _PALETTE[unknown_archs.index(arch) % len(_PALETTE)]
 
 
 def arch_label(arch: str) -> str:
@@ -75,7 +85,8 @@ def main():
         print("No metrics.json files found. Run training first.")
         return
 
-    colors = {arch: _PALETTE[i % len(_PALETTE)] for i, arch in enumerate(archs)}
+    unknown = [a for a in archs if a not in _ARCH_COLORS]
+    colors = {arch: arch_color(arch, unknown) for arch in archs}
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle("Emergent Language — Learning Curves by Architecture", fontsize=13)
