@@ -27,7 +27,7 @@ LABELS = {
 }
 
 SIMILAR_THRESHOLD = 0.5
-DISSIMILAR_THRESHOLD = 0.6
+DISSIMILAR_THRESHOLD = 0.3
 N_PAIRS = 10
 MIN_PAIRS = 5
 N_EXAMPLES = 3
@@ -81,7 +81,7 @@ def analyse_arch(arch: str, results_dir: Path, seed: int, epoch: int):
     mean_path = seed_dir / f"meanings_epoch{epoch}.npy"
 
     if not msg_path.exists() or not mean_path.exists():
-        return None
+        return "missing"
 
     messages = np.load(msg_path)   # (N, max_len)
     meanings = np.load(mean_path)  # (N, feature_dim)
@@ -92,9 +92,9 @@ def analyse_arch(arch: str, results_dir: Path, seed: int, epoch: int):
     dissimilar_pairs = find_pairs(meanings, rng, N_PAIRS, DISSIMILAR_THRESHOLD, below=False)
 
     if len(similar_pairs) < MIN_PAIRS or len(dissimilar_pairs) < MIN_PAIRS:
-        print(f"  [{arch}] Could not find enough pairs (similar={len(similar_pairs)}, "
+        print(f"  Warning: not enough pairs found (similar={len(similar_pairs)}, "
               f"dissimilar={len(dissimilar_pairs)}) — skipping.")
-        return None
+        return "no_pairs"
 
     sim_overlaps = [symbol_overlap(messages[i], messages[j]) for i, j in similar_pairs]
     dis_overlaps = [symbol_overlap(messages[i], messages[j]) for i, j in dissimilar_pairs]
@@ -148,9 +148,11 @@ def main():
     for arch in ARCHS:
         print(f"\nAnalysing {LABELS[arch]}...")
         result = analyse_arch(arch, results_dir, args.seed, args.epoch)
-        if result is None:
+        if result == "missing":
             print(f"  Skipping {arch} — files not found at "
                   f"{results_dir}/{arch}/seed_{args.seed}/messages_epoch{args.epoch}.npy")
+            continue
+        if result == "no_pairs":
             continue
 
         print(f"  mean overlap (similar pairs):    {result['mean_overlap_similar_pairs']:.3f}")
