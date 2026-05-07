@@ -1,8 +1,9 @@
 """
 Qualitative message analysis: symbol overlap between similar vs. dissimilar object pairs.
+Architectures are auto-discovered from results_dir at runtime.
 
-Loads messages_epoch100.npy and meanings_epoch100.npy from results/{arch}/seed_42/
-for all 5 architectures and computes positional symbol overlap as a compositionality proxy.
+Loads messages_epoch{epoch}.npy and meanings_epoch{epoch}.npy from
+results/{arch}/seed_{seed}/ for each discovered architecture.
 
 Usage:
     python scripts/plot_message_analysis.py
@@ -17,20 +18,23 @@ import numpy as np
 from scipy.spatial.distance import cosine
 
 
-ARCHS = ["lstm", "gru", "transformer", "transformer_gs", "mlp"]
-LABELS = {
-    "lstm": "LSTM",
-    "gru": "GRU",
-    "transformer": "Transformer (REINFORCE)",
-    "transformer_gs": "Transformer (GS)",
-    "mlp": "MLP",
-}
-
 SIMILAR_THRESHOLD = 0.5
 DISSIMILAR_THRESHOLD = 0.3
 N_PAIRS = 10
 MIN_PAIRS = 5
 N_EXAMPLES = 3
+
+
+def arch_label(arch: str) -> str:
+    _KNOWN = {"lstm": "LSTM", "gru": "GRU", "mlp": "MLP"}
+    if arch in _KNOWN:
+        return _KNOWN[arch]
+    _SUFFIXES = {"gs": "GS", "reinforce": "REINFORCE", "rnn": "RNN", "cnn": "CNN"}
+    parts = arch.split("_")
+    if len(parts) > 1 and parts[-1] in _SUFFIXES:
+        base = " ".join(p.capitalize() for p in parts[:-1])
+        return f"{base} ({_SUFFIXES[parts[-1]]})"
+    return " ".join(p.capitalize() for p in parts)
 
 
 def parse_args():
@@ -39,6 +43,18 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--epoch", type=int, default=100)
     return p.parse_args()
+
+
+def discover_archs(results_dir: Path, seed: int, epoch: int) -> list[str]:
+    archs = []
+    for arch_dir in sorted(results_dir.iterdir()):
+        if not arch_dir.is_dir():
+            continue
+        seed_dir = arch_dir / f"seed_{seed}"
+        if (seed_dir / f"messages_epoch{epoch}.npy").exists() and \
+                (seed_dir / f"meanings_epoch{epoch}.npy").exists():
+            archs.append(arch_dir.name)
+    return archs
 
 
 def symbol_overlap(m1: np.ndarray, m2: np.ndarray) -> float:
@@ -56,7 +72,6 @@ def find_pairs(meanings: np.ndarray, rng: np.random.Generator, n: int, threshold
     """
     n_objects = len(meanings)
     candidates = []
-    # random sample of index pairs to avoid O(N^2) full scan
     max_candidates = min(50_000, n_objects * (n_objects - 1) // 2)
     checked = set()
     attempts = 0
@@ -117,18 +132,20 @@ def analyse_arch(arch: str, results_dir: Path, seed: int, epoch: int):
     }
 
 
-def print_examples(result: dict, n: int = N_EXAMPLES):
-    arch = result["arch"]
+def print_examples(arch: str, result: dict, n: int = N_EXAMPLES):
     messages = result["messages"]
     meanings = result["meanings"]
+    label = arch_label(arch)
 
     print(f"\n  {'─'*56}")
-    print(f"  {LABELS[arch]}")
+    print(f"  {label}")
     print(f"  {'─'*56}")
 
-    for label, pairs in [("SIMILAR pairs (cosine < 0.5)", result["similar_pairs"][:n]),
-                          ("DISSIMILAR pairs (cosine > 0.6)", result["dissimilar_pairs"][:n])]:
-        print(f"\n  {label}:")
+    for header, pairs in [
+        (f"SIMILAR pairs (cosine < {SIMILAR_THRESHOLD})", result["similar_pairs"][:n]),
+        (f"DISSIMILAR pairs (cosine > {DISSIMILAR_THRESHOLD})", result["dissimilar_pairs"][:n]),
+    ]:
+        print(f"\n  {header}:")
         for i, j in pairs:
             dist = cosine(meanings[i], meanings[j])
             m1 = messages[i].tolist()
@@ -144,12 +161,18 @@ def main():
     results_dir = Path(args.results_dir)
     output_csv = results_dir / "message_analysis.csv"
 
+    archs = discover_archs(results_dir, args.seed, args.epoch)
+    if not archs:
+        print(f"No messages_epoch{args.epoch}.npy / meanings_epoch{args.epoch}.npy files found "
+              f"for seed_{args.seed}. Run evaluate.py first.")
+        return
+
     rows = []
-    for arch in ARCHS:
-        print(f"\nAnalysing {LABELS[arch]}...")
+    for arch in archs:
+        print(f"\nAnalysing {arch_label(arch)}...")
         result = analyse_arch(arch, results_dir, args.seed, args.epoch)
         if result == "missing":
-            print(f"  Skipping {arch} — files not found at "
+            print(f"  Skipping — files not found at "
                   f"{results_dir}/{arch}/seed_{args.seed}/messages_epoch{args.epoch}.npy")
             continue
         if result == "no_pairs":
@@ -159,7 +182,7 @@ def main():
         print(f"  mean overlap (dissimilar pairs): {result['mean_overlap_dissimilar_pairs']:.3f}")
         print(f"  ratio (similar/dissimilar):      {result['ratio']:.3f}")
 
-        print_examples(result)
+        print_examples(arch, result)
 
         rows.append({
             "arch": arch,
@@ -179,7 +202,7 @@ def main():
             writer.writerows(rows)
         print(f"\nSaved summary to {output_csv}")
     else:
-        print("\nNo results found — run training and evaluate first to generate .npy files.")
+        print("\nNo results produced.")
 
 
 if __name__ == "__main__":

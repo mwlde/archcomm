@@ -1,5 +1,6 @@
 """
 Aggregate metrics.json files across architectures and seeds.
+Architectures and metrics are auto-discovered from results_dir at runtime.
 
 Usage:
     python scripts/aggregate_results.py
@@ -13,10 +14,6 @@ from pathlib import Path
 from collections import defaultdict
 
 import numpy as np
-
-
-ARCHS = ["lstm", "gru", "transformer", "mlp"]
-METRICS = ["val_acc", "topo_rho", "symbol_entropy", "effective_vocab_size"]
 
 
 def parse_args():
@@ -42,7 +39,6 @@ def main():
     results_dir = Path(args.results_dir)
     output_path = Path(args.output) if args.output else results_dir / "summary.csv"
 
-    # Collect final-epoch values per arch
     per_arch: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
 
     found_any = False
@@ -62,22 +58,24 @@ def main():
             print(f"  loaded {seed_dir.relative_to(results_dir)} | "
                   f"val_acc={row.get('val_acc', 'N/A'):.3f}  "
                   f"topo_rho={row.get('topo_rho') or float('nan'):.3f}")
-            for metric in METRICS:
-                val = row.get(metric)
-                if val is not None:
-                    per_arch[arch][metric].append(float(val))
+            for key, val in row.items():
+                if key == "epoch":
+                    continue
+                if isinstance(val, (int, float)) and val is not None:
+                    per_arch[arch][key].append(float(val))
 
     if not found_any:
         print("No metrics.json files found. Run training first.")
         return
 
+    archs = sorted(per_arch.keys())
+    metrics = sorted({key for arch_data in per_arch.values() for key in arch_data})
+
     # Build summary rows
     summary = []
-    for arch in ARCHS:
-        if arch not in per_arch:
-            continue
+    for arch in archs:
         row = {"arch": arch}
-        for metric in METRICS:
+        for metric in metrics:
             vals = per_arch[arch][metric]
             if vals:
                 row[f"{metric}_mean"] = round(float(np.mean(vals)), 4)
@@ -90,22 +88,22 @@ def main():
         summary.append(row)
 
     # Print table
-    col_order = ["arch"] + [f"{m}_{s}" for m in METRICS for s in ("mean", "std")]
-    header = f"{'arch':<14}" + "".join(f"{c:<22}" for c in col_order[1:])
+    col_order = ["arch"] + [f"{m}_{s}" for m in metrics for s in ("mean", "std")]
+    header = f"{'arch':<20}" + "".join(f"{c:<22}" for c in col_order[1:])
     print("\n" + header)
     print("-" * len(header))
     for row in summary:
-        line = f"{row['arch']:<14}"
+        line = f"{row['arch']:<20}"
         for col in col_order[1:]:
             val = row.get(col)
-            line += f"{val!s:<22}" if val is None else f"{val:<22.4f}"
+            line += f"{'N/A':<22}" if val is None else f"{val:<22.4f}"
         print(line)
 
     # Save CSV
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = col_order + [f"{m}_n" for m in metrics]
     with open(output_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=col_order + [f"{m}_n" for m in METRICS],
-                                extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(summary)
     print(f"\nSaved to {output_path}")

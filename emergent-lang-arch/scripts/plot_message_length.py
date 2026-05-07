@@ -1,7 +1,8 @@
 """
 Boxplot of mean message length per seed across architectures.
+Architectures are auto-discovered from results_dir at runtime.
 
-Loads messages_epoch100.npy from each results/{arch}/seed_{seed}/ folder.
+Loads messages_epoch{epoch}.npy from each results/{arch}/seed_*/ folder.
 Message length = index of first 0 (EOS/pad) token; full max_len if no 0 present.
 
 Usage:
@@ -16,8 +17,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-ARCHS = ["lstm", "gru", "transformer", "mlp"]
-COLORS = {"lstm": "#2196F3", "gru": "#4CAF50", "transformer": "#FF5722", "mlp": "#9C27B0"}
+_PALETTE = [
+    "#2196F3", "#4CAF50", "#FF5722", "#FF9800", "#9C27B0",
+    "#00BCD4", "#E91E63", "#8BC34A", "#795548", "#607D8B",
+]
+
+
+def arch_label(arch: str) -> str:
+    _KNOWN = {"lstm": "LSTM", "gru": "GRU", "mlp": "MLP"}
+    if arch in _KNOWN:
+        return _KNOWN[arch]
+    _SUFFIXES = {"gs": "GS", "reinforce": "REINFORCE", "rnn": "RNN", "cnn": "CNN"}
+    parts = arch.split("_")
+    if len(parts) > 1 and parts[-1] in _SUFFIXES:
+        base = " ".join(p.capitalize() for p in parts[:-1])
+        return f"{base} ({_SUFFIXES[parts[-1]]})"
+    return " ".join(p.capitalize() for p in parts)
 
 
 def parse_args():
@@ -26,6 +41,19 @@ def parse_args():
     p.add_argument("--epoch", type=int, default=100, help="Which epoch's messages to load")
     p.add_argument("--output", default=None)
     return p.parse_args()
+
+
+def discover_archs(results_dir: Path, epoch: int) -> list[str]:
+    archs = []
+    for arch_dir in sorted(results_dir.iterdir()):
+        if not arch_dir.is_dir():
+            continue
+        for seed_dir in arch_dir.iterdir():
+            if seed_dir.is_dir() and seed_dir.name.startswith("seed_") \
+                    and (seed_dir / f"messages_epoch{epoch}.npy").exists():
+                archs.append(arch_dir.name)
+                break
+    return archs
 
 
 def message_lengths(messages: np.ndarray) -> np.ndarray:
@@ -72,21 +100,28 @@ def main():
     results_dir = Path(args.results_dir)
     output_path = Path(args.output) if args.output else results_dir / "message_length.png"
 
+    archs = discover_archs(results_dir, args.epoch)
+    if not archs:
+        print(f"No messages_epoch{args.epoch}.npy files found. "
+              f"Run training first, or try --epoch <N> matching an eval checkpoint.")
+        return
+
+    colors = {arch: _PALETTE[i % len(_PALETTE)] for i, arch in enumerate(archs)}
+
     arch_means: dict[str, list[float]] = {}
-    for arch in ARCHS:
-        print(f"\n{arch}:")
+    for arch in archs:
+        print(f"\n{arch_label(arch)}:")
         means = load_arch_data(results_dir, arch, args.epoch)
         if means:
             arch_means[arch] = means
 
-    present = [a for a in ARCHS if a in arch_means]
+    present = [a for a in archs if a in arch_means]
     if not present:
-        print(f"\nNo messages_epoch{args.epoch}.npy files found. "
-              f"Run training first, or try --epoch <N> matching an eval checkpoint.")
+        print(f"\nNo data loaded.")
         return
 
     # ------------------------------------------------------------------ plot
-    fig, ax = plt.subplots(figsize=(7, 5))
+    fig, ax = plt.subplots(figsize=(max(6, len(present) * 1.4), 5))
 
     data = [arch_means[a] for a in present]
     positions = list(range(1, len(present) + 1))
@@ -103,18 +138,17 @@ def main():
     )
 
     for patch, arch in zip(bp["boxes"], present):
-        patch.set_facecolor(COLORS[arch])
+        patch.set_facecolor(colors[arch])
         patch.set_alpha(0.7)
 
-    # overlay individual seed points
     for i, (arch, pos) in enumerate(zip(present, positions)):
         vals = arch_means[arch]
         jitter = np.random.default_rng(i).uniform(-0.08, 0.08, len(vals))
         ax.scatter(np.full(len(vals), pos) + jitter, vals,
-                   color=COLORS[arch], zorder=3, s=40, edgecolors="white", linewidths=0.5)
+                   color=colors[arch], zorder=3, s=40, edgecolors="white", linewidths=0.5)
 
     ax.set_xticks(positions)
-    ax.set_xticklabels(present, fontsize=11)
+    ax.set_xticklabels([arch_label(a) for a in present], fontsize=11)
     ax.set_ylabel("Mean message length (tokens)", fontsize=11)
     ax.set_title(f"Message Length Distribution at Epoch {args.epoch}\n"
                  f"(0 = EOS/pad, each point = one seed)", fontsize=11)
