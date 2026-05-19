@@ -4,6 +4,9 @@ Chronological record of errors encountered during setup and experiment runs, wit
 
 Some of them were just me figuring myslef out along the way and documenting for the future, so I dont get lost in my own corrections, even if it was somethign relatively trivial.
 
+
+Basically, these were just my notes, but I decided to keep them public. 
+
 ---
 
 ## 1. `editdistance` fails to build on Windows
@@ -258,7 +261,7 @@ Also created `configs/dev_config.yaml` with reduced scale for local testing:
 
 ## current status
 
-- all experiments complete: 5 conditions × 10 seeds (LSTM, GRU, Transformer/REINFORCE, Transformer/GS, MLP)
+- all experiments complete: 5 conditions × 10 seeds (LSTM, GRU, Transformer/REINFORCE, Transformer/GS, MLP) 50 runs total
 - metrics.json saved per run for all conditions
 - analysis scripts complete: aggregate_results.py, plot_learning_curves.py, plot_message_length.py, plot_message_analysis.py
 - paper writeup in progress

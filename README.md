@@ -15,11 +15,12 @@ Does the inductive bias of an agent's architecture shape the compositional struc
 ---
  
 ## Setup
+google collab read only: https://colab.research.google.com/drive/1wzqLFNgWw8A4ekC2_EpGVUquErgb-zoK?usp=sharing
  
 ### Local (Windows)
  
 ```bash
-git clone https://github.com/SharkFishie/archcomm.git
+git clone https://github.com/mwlde/archcomm.git
 cd archcomm/emergent-lang-arch
  
 python -m venv .venv
@@ -33,27 +34,29 @@ EGG requires two manual patches on Windows — see [DEVLOG.md](DEVLOG.md) for de
  
 ### Google Colab (recommended for full experiments)
  
-Use the notebook cells in order. See `notebooks/colab_setup.ipynb` or copy the cells from DEVLOG.md. Requires Runtime → T4 GPU.
+Use the notebook cells in order. See `notebooks/colab_setup.ipynb` or copy the cells from DEVLOG.md. Requires Runtime T4 GPU. 
+
+*update: i dont think i added the ipynb yet so ill make sure to add it later or insert a link somewhere 
  
 ---
  
 ## Running experiments
  
 ```bash
-# set PYTHONPATH first (required)
+#set PYTHONPATH first (required)
 export PYTHONPATH=.        # Mac/Linux/Colab
 $env:PYTHONPATH = "."      # Windows PowerShell
  
-# quick dev run (CPU, ~2 min)
+#quick dev run (CPU, ~2 min)
 python scripts/train.py --config configs/dev_config.yaml --arch lstm
  
-# full run (GPU recommended)
+#full run (GPU recommended for speed)
 python scripts/train.py --config configs/base_config.yaml --arch lstm --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch gru --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch transformer --seed 42
 python scripts/train.py --config configs/base_config.yaml --arch mlp --seed 42
 
-# Transformer with Gumbel-Softmax (separate condition, more stable than REINFORCE)
+#Transformer with Gumbel-Softmax 
 python scripts/train.py --config configs/transformer_gs_config.yaml --gumbel --seed 42
 ```
 
@@ -95,7 +98,7 @@ emergent-lang-arch/
 ├── scripts/            train.py, evaluate.py
 ├── results/            experiment outputs (gitignored)
 ├── DEVLOG.md           error log and fixes
-└── README.md
+README.md
 ```
  
 ---
