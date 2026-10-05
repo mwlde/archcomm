@@ -31,7 +31,7 @@ Requires Runtime T4 GPU for speed. Run cells in order.
 ### Local (Windows)
 
 ```bash
-git clone https://github.com/SharkFishie/archcomm.git
+git clone https://github.com/mwlde/archcomm.git
 cd archcomm/emergent-lang-arch
 
 python -m venv .venv
